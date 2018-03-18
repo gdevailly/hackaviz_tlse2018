@@ -194,4 +194,4 @@ map_dfr(premCom$commerce, function(x) {
 ```
 
 
-Le code source de l'analyse est disponible sur [GitHub](https://github.com/gdevailly).
+Le code source de l'analyse est disponible sur [GitHub](https://github.com/gdevailly/hackaviz_tlse2018).
