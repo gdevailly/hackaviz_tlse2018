@@ -1,0 +1,197 @@
+---
+title: "Occitanie des villes, Occitanie des champs"
+author: "Guillaume Devailly & Yann Labrune, 19 mars 2018"
+header-includes:
+- \usepackage[francais]{babel}
+geometry: margin=1.5cm
+fontsize: 10pt
+linkcolor: green
+output:
+  pdf_document: 
+    fig_caption: yes
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = FALSE,
+    warning = FALSE, message = FALSE,
+    fig.align = "center",
+    fig.pos = "h"
+)
+
+library(here)
+library(tidyverse)
+library(cowplot)
+library(ggrepel)
+
+theme_set(theme_bw())
+
+occitanie <- read_tsv(here("data", "TDV_hackaviz_2018_utf8.tsv"))
+
+```
+
+## Partie 1: Villes et villages: des demographies differentes?
+
+Villes et villages ont subi l'exode rural du vingtième siècle de façon différente. D'après la figure **1 A.**, les ménages sont constitués de légèrement moins de personnes dans les villages que les grandes villes. Ces grandes villes ont un revenu médian par habitant légèrement supérieur aux villages, même si la tendance reste faible (figure **1 B.**).
+
+```{r menage, fig.height=2.2, fig.cap="A. Nombre de personnes par ménage en fonction de la population des communes d'Occitanie. Chaque point représente une commune. B. Revenu mensuel médian en fonction de la population des communes d'Occitanie. Lissage vert : Modèle additif généralisé."}
+p_taille <- ggplot(occitanie, aes(
+    x = population_2014,
+    y = Nombre_personnes_dans_menages_fiscaux / Nombre_menages_fiscaux
+)) +
+    geom_point(size = 1, alpha = 0.2, color = "coral1") +
+    geom_smooth(color = "mediumspringgreen", fill = "mediumspringgreen", alpha = 0.2) +
+    geom_text_repel(aes(label = if_else(
+        commune %in% c("TOULOUSE", "MONTPELLIER", "NIMES", "PERPIGNAN"),
+        stringr::str_to_title(commune),
+        NA_character_
+    )), color = "gray40") +
+    scale_x_log10(limits = c(100, 500000)) +
+    annotation_logticks(sides = "b") +
+    labs(x = "Population", y = "Taille des ménages")
+
+p_revenu <- ggplot(occitanie, aes(
+    x = population_2014,
+    y = mediane_du_revenu_disponible_par_unite_de_consommation_euro / (Nombre_personnes_dans_menages_fiscaux / Nombre_menages_fiscaux)
+)) +
+    geom_point(size = 1, alpha = 0.2, color = "coral1") +
+    geom_smooth(color = "mediumspringgreen", fill = "mediumspringgreen", alpha = 0.2) +
+    geom_text_repel(aes(label = if_else(
+        commune %in% c("TOULOUSE", "MONTPELLIER", "NIMES", "PERPIGNAN"),
+        stringr::str_to_title(commune),
+        NA_character_
+    )), color = "gray40") +
+    scale_x_log10(limits = c(100, 500000)) +
+    annotation_logticks(sides = "b") +
+    labs(x = "Population", y = "Revenu médian\npar habitant")
+
+ggdraw() +
+    draw_plot(p_taille, x = 0.00, y = 0.0, w = 0.48, h = 1.0) +
+    draw_plot(p_revenu, x = 0.48, y = 0.0, w = 0.52, h = 1.0) +
+    draw_plot_label(LETTERS[1:2], x = c(0, 0.5))
+
+```
+
+
+Les villageois sont aussi en moyenne plus vieux que les habitants des grandes villes (figure **2 A.**). On retrouve ici une autre constante de la démographie Française: les femmes ayant une espérance de vie plus élevée que les hommes, leur moyenne d'âge est plus élevée. Le *sex ratio* évolue aussi en fonction de la population des communes (figure **2 B.**), les villes moyennes et grandes ont plus d'habitantes que d'habitants.
+
+```{r taille_ville, fig.height=2.2, fig.cap="A. Age moyen des femmes (F) et des hommes (H) en fonction de la taille des communes. B. Sex ratio (en log2) en fonction de la taille des communes."}
+
+p_age <- select(occitanie, commune, population_2014, moyenne_age_F_2014, moyenne_age_H_2014) %>%
+    gather(key = sexe, value = age_moyen, -population_2014, -commune) %>%
+    mutate(sexe = if_else(sexe == "moyenne_age_F_2014", "F", "H")) %>%
+    ggplot(aes(
+        x = population_2014,
+        y = age_moyen,
+        color = sexe,
+        fill = sexe
+    )) +
+    geom_smooth() +
+    scale_x_log10(limits = c(10, 500000)) +
+    annotation_logticks(sides = "b") +
+    labs(x = "Population", y = "Moyenne d'age")
+
+p_sexratio <- ggplot(occitanie, aes(x = population_2014, y = log2(Total_population_femmes_2014 / Total_population_hommes_2014))) +
+    geom_point(size = 1, alpha = 0.2, color = "coral1") +
+    geom_smooth(color = "mediumspringgreen", fill = "mediumspringgreen", alpha = 0.2) +
+    geom_text_repel(aes(label = if_else(
+        commune %in% c("TOULOUSE", "MONTPELLIER", "NIMES", "PERPIGNAN"),
+        stringr::str_to_title(commune),
+        NA_character_
+    )), color = "gray40") +
+    scale_x_log10(limits = c(10, 500000)) +
+    coord_cartesian(ylim = c(-1, 1)) +
+    annotation_logticks(sides = "b") +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    labs(x = "Population", y = "<- Hommes | Femmes ->")
+
+ggdraw() +
+    draw_plot(p_age     , x = 0.0, y = 0.0, w = 0.55, h = 1.0) +
+    draw_plot(p_sexratio, x = 0.55, y = 0.0, w = 0.44, h = 1.0) +
+    draw_plot_label(LETTERS[1:2], x = c(0, 0.5))
+
+```
+
+## Partie 2: Commerces et population des communes
+
+Pour être viable, chaque commerce a besoin d'une clientèle suffisante, qu'il trouve principalement dans sa commune et celles alentours. Représentons le nombre de commerces par commune en fonction de leur population, et ce pour les boulangeries, les librairies et papeteries, et pour les hypermarchés :
+```{r commerces, fig.height=2.2, fig.cap="Nombre de commerces en fonction de la population des communes d'Occitanie. Lissage vert: Modèle additif généralisé. Ligne grise: modèle linéaire."}
+select(occitanie, commune, population_2014, Hypermarche:Station_service) %>%
+    gather(key = commerce, value = nombre, -commune, -population_2014) %>%
+    filter(commerce %in% c("Boulangerie", "Hypermarche", "Librairie_papeterie_journaux")) %>%
+    mutate(commerce = {
+        mf <- factor(commerce, levels = c("Boulangerie", "Librairie_papeterie_journaux", "Hypermarche"))
+        levels(mf) <- c("Boulangerie", "Librairie & papeterie", "Hypermarché")
+        mf
+    }) %>%
+    ggplot(aes(x = population_2014, y = nombre + 1)) +
+    geom_point(size = 1.2, alpha = 0.25, color = "coral1") +
+    geom_smooth(color = "mediumspringgreen") +
+    geom_smooth(color = "grey", method = "lm", se = FALSE) +
+    scale_x_log10(limits = c(10, 500000)) +
+    scale_y_log10(limits = c(1, 500), breaks = c(1, 10, 100), labels = c(0, 9, 99)) +
+    annotation_logticks(sides = "bl") +
+    labs(x = "Population", y = "Nombre de magasins") +
+    facet_wrap(~commerce)
+
+```
+
+A l'aide d'un modèle linéaire simple (ligne grise de la figure **3**), il est possible de déterminer la population moyenne des communes pour une première installation de commerce :
+
+```{r commerces2, fig.height=3.5, fig.cap="Population moyenne de la commune nécessaire à une première installation de commerce en Occitanie."}
+commerces <- select(occitanie, commune, population_2014, Hypermarche:Station_service) %>%
+    gather(key = commerce, value = nombre, -commune, -population_2014)
+
+premCom <- tibble(
+    commerce = unique(commerces$commerce),
+    premiere_installation = map_dbl(unique(commerces$commerce), function(x) {
+        md <- filter(commerces, commerce == x)
+        vars <- tibble(
+            var1 = log10(md$population_2014 + 1),
+            var2 = log10(md$nombre + 1)
+        )
+        mlm <- lm(var2 ~ var1, data = vars)
+        a <- mlm$coefficients[[2]]
+        b <- mlm$coefficients[[1]]
+        p <- 10^((log10(2) - b) / a) -1
+        p
+    })
+) %>% arrange(premiere_installation) %>%
+    mutate(commerce = forcats::fct_reorder(commerce, premiere_installation))
+
+ggplot(premCom, aes(x = commerce, y = premiere_installation)) +
+    geom_col(fill = "coral1") +
+    # geom_text(aes(x = commerce, y = premiere_installation, label = round(premiere_installation)), angle = 90, hjust = 1, vjust = 0.5, inherit.aes = FALSE, size = 2.5) +
+    scale_y_log10() +
+    annotation_logticks(sides = "l") +
+    coord_cartesian(ylim = c(100, 1000000)) +
+    theme(axis.text.x = element_text(angle = 33, hjust = 1, size = 8)) +
+    labs(x = "", y = "Population moyenne\nde première installation")
+```
+
+Cela nous permet d'identifier des communes qui manquent de commerces malgré une population importante (par exemple, plus de deux fois la taille moyenne de première implantation). C'est le cas de 6 communes sans boulangerie, 23 sans magasin de vêtements, 22 sans épicerie et une sans boucherie-charcuterie. La table ci-dessous identifie la commune la plus peuplée pour chacun de ces quatre types de commerces:
+
+```{r table1}
+# tibble(
+#     commerce = premCom$commerce,
+#     n_commune = map_int(premCom$commerce, function(x) {
+#         filter(commerces, nombre == 0, commerce == x) %>%
+#             filter(population_2014 > (2 * filter(premCom, commerce == x)$premiere_installation)) %>%
+#             nrow()
+#     })
+# )
+
+map_dfr(premCom$commerce, function(x) {
+    filter(commerces, nombre == 0, commerce == x) %>%
+        filter(population_2014 > (2 * filter(premCom, commerce == x)$premiere_installation))
+}) %>% group_by(commerce) %>%
+    slice(which.max(population_2014)) %>%
+    select(-nombre) %>%
+    knitr::kable()
+
+```
+
+
+Le code source de l'analyse est disponible sur [GitHub](https://github.com/gdevailly).
