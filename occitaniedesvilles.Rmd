@@ -140,7 +140,7 @@ select(occitanie, commune, population_2014, Hypermarche:Station_service) %>%
 
 A l'aide d'un modèle linéaire simple (ligne grise de la figure **3**), il est possible de déterminer la population moyenne des communes pour une première installation de commerce :
 
-```{r commerces2, fig.height=3.5, fig.cap="Population moyenne de la commune nécessaire à une première installation de commerce en Occitanie."}
+```{r commerces2, fig.height=3.5, fig.cap="Population moyenne de la commune nécessaire à une première installation de commerce en Occitanie. Barres d'erreur: interval de confiance à 95\\%."}
 commerces <- select(occitanie, commune, population_2014, Hypermarche:Station_service) %>%
     gather(key = commerce, value = nombre, -commune, -population_2014)
 
@@ -157,13 +157,41 @@ premCom <- tibble(
         b <- mlm$coefficients[[1]]
         p <- 10^((log10(2) - b) / a) -1
         p
+    }),
+    pmin = map_dbl(unique(commerces$commerce), function(x) {
+        md <- filter(commerces, commerce == x)
+        vars <- tibble(
+            var1 = log10(md$population_2014 + 1),
+            var2 = log10(md$nombre + 1)
+        )
+        mlm <- lm(var2 ~ var1, data = vars)
+        mci <- confint.lm(mlm)
+        amax <- mci[2, 2]
+        bmin <- mci[1, 1]
+        pmin <- 10^((log10(2) - bmin) / amax) -1
+        pmin
+    }),
+        pmax = map_dbl(unique(commerces$commerce), function(x) {
+        md <- filter(commerces, commerce == x)
+        vars <- tibble(
+            var1 = log10(md$population_2014 + 1),
+            var2 = log10(md$nombre + 1)
+        )
+        mlm <- lm(var2 ~ var1, data = vars)
+        mci <- confint.lm(mlm)
+        amin <- mci[2, 1]
+        bmax <- mci[1, 2]
+        pmax <- 10^((log10(2) - bmax) / amin) -1
+        pmax
     })
+    
 ) %>% arrange(premiere_installation) %>%
     mutate(commerce = forcats::fct_reorder(commerce, premiere_installation))
 
 ggplot(premCom, aes(x = commerce, y = premiere_installation)) +
-    geom_col(fill = "coral1") +
+    geom_col(fill = "coral1", width = 0.7) +
     # geom_text(aes(x = commerce, y = premiere_installation, label = round(premiere_installation)), angle = 90, hjust = 1, vjust = 0.5, inherit.aes = FALSE, size = 2.5) +
+    geom_errorbar(aes(ymin = pmin, ymax = pmax), width = 0.2) +
     scale_y_log10() +
     annotation_logticks(sides = "l") +
     coord_cartesian(ylim = c(100, 1000000)) +
@@ -194,4 +222,4 @@ map_dfr(premCom$commerce, function(x) {
 ```
 
 
-Le code source de l'analyse est disponible sur [GitHub](https://github.com/gdevailly/hackaviz_tlse2018).
+Le code source de l'analyse est disponible sur [GitHub](https://github.com/gdevailly/hackaviz_tlse2018). Nous avons utilisé R, ggplot2 et d'autres paquets (voir sources).
